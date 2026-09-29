@@ -2,45 +2,32 @@
 
 EmailSender is a local app for preparing and sending individual attendance notices to parents. It imports Excel workbooks, matches students to parent email addresses by registration number, lets you review the message, and sends through your Gmail account. The website and sending service run on your computer.
 
-**Repository:** [Cosmos-0118/EmailSender](https://github.com/Cosmos-0118/EmailSender) (`main`). The repository is currently private. You need access to it and working GitHub authentication before cloning or using the managed installer. Public `raw.githubusercontent.com` install commands will not work while it is private.
+**Repository:** [Cosmos-0118/EmailSender](https://github.com/Cosmos-0118/EmailSender) (`main`).
 
 ## Requirements
 
-- Git and Node.js LTS
+- Git and Node.js LTS for running from a source checkout; the managed installer can install missing tools
 - A Gmail account that can use an app password
 - Attendance and parent directory files in `.xlsx` format; see the [sample layouts](examples/README.md)
 
-## Run from a source checkout
+## Install and run
 
-These commands use the repository directly and keep your app data outside it. On macOS, use Terminal; on Windows, use PowerShell. Authenticate Git with an account that has access to the private repository before cloning.
+The installer downloads the app, adds an `emailsender` command, and starts it. You do not need to clone the repository first.
 
-```sh
-git clone https://github.com/Cosmos-0118/EmailSender.git
-cd EmailSender
-npm ci
-npm run dev
-```
-
-`npm run dev` builds the website, starts the local service, and opens its private launch link in your browser. Leave the terminal running while using EmailSender. To start it again later, run `npm run dev` from the checkout. To update, stop the app and run `git pull --ff-only`, `npm ci`, then `npm run dev`.
-
-The app listens on `127.0.0.1:43871`, but the bare address and an old Vite tab on port `5173` will not unlock it. Use the browser tab opened by the launcher. If you run `npm run start` directly, open the private link printed in the terminal.
-
-## Optional managed launcher
-
-The installer creates a separate managed checkout, adds an `emailsender` command, and starts the app. First clone the private repository as above so you can run its installer script.
-
-On macOS, from that checkout:
+On macOS Terminal:
 
 ```sh
-EMAILSENDER_REPO_URL=https://github.com/Cosmos-0118/EmailSender.git bash scripts/install.sh
+emailsender_installer="$(curl -fsSL https://raw.githubusercontent.com/Cosmos-0118/EmailSender/main/scripts/install.sh)" && test -n "$emailsender_installer" && bash -c "$emailsender_installer"
 ```
 
-The macOS installer uses Homebrew to install missing Git or Node.js dependencies and may request administrator access. It adds `~/.local/bin` to your shell profile; open a new terminal if `emailsender` is not yet on your `PATH`.
+This keeps Terminal available for the installer if Homebrew needs to ask for your macOS administrator password.
 
-On Windows PowerShell, from that checkout:
+The macOS installer uses Homebrew to install missing Git or Node.js tools and may request administrator access. It adds `~/.local/bin` to your shell profile; open a new terminal if `emailsender` is not yet on your `PATH`.
+
+On Windows PowerShell:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -RepositoryUrl https://github.com/Cosmos-0118/EmailSender.git
+$installer = irm https://raw.githubusercontent.com/Cosmos-0118/EmailSender/main/scripts/install.ps1; if (-not $installer) { throw 'Installer download was empty' }; iex $installer
 ```
 
 The Windows installer uses `winget` or Chocolatey for missing dependencies and adds `%LOCALAPPDATA%\EmailSender\bin` to your user `PATH`. Open a new PowerShell window if the command is not yet available.
@@ -52,6 +39,21 @@ emailsender start
 ```
 
 Each managed start fetches the default branch, resets local changes **inside the managed app checkout**, installs dependencies, builds, and opens the private local link. Do not store personal files or edits in that managed checkout. Attendance files and saved app data live separately.
+
+The app listens on `127.0.0.1:43871`, but the bare address will not unlock it. Use the browser tab opened by the launcher or the private link printed in the terminal.
+
+## Run from a source checkout
+
+For development, you can run the repository directly. On macOS, use Terminal; on Windows, use PowerShell.
+
+```sh
+git clone https://github.com/Cosmos-0118/EmailSender.git
+cd EmailSender
+npm ci
+npm run dev
+```
+
+`npm run dev` builds the website, starts the local service, and opens its private launch link in your browser. Leave the terminal running while using EmailSender. To start it again later, run `npm run dev` from the checkout. To update, stop the app and run `git pull --ff-only`, `npm ci`, then `npm run dev`.
 
 ## Send a mailing
 

@@ -9,8 +9,11 @@ $env:EMAILSENDER_DATA_DIR = $dataDir
 if (-not (Test-Path (Join-Path $checkout '.git'))) { throw "Managed checkout is missing Git metadata: $checkout" }
 
 Push-Location $checkout
+$server = $null
 try {
+  Write-Host "`n[1/3] Checking for updates..." -ForegroundColor Cyan
   git fetch --prune origin
+  if ($LASTEXITCODE -ne 0) { throw 'Could not check for updates. Check your connection and retry.' }
   git remote set-head origin -a 2>$null | Out-Null
   $branchRef = git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null
   $branch = if ($LASTEXITCODE -eq 0 -and $branchRef) { $branchRef -replace '^origin/', '' } else { '' }
@@ -34,6 +37,7 @@ try {
   git clean -fd
   if ($LASTEXITCODE -ne 0) { throw 'Could not clean the managed checkout.' }
 
+  Write-Host "`n[2/3] Preparing the app..." -ForegroundColor Cyan
   if (Test-Path 'package-lock.json') { npm ci } else { npm install }
   if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
   npm run build
@@ -41,19 +45,26 @@ try {
 
   $launchFile = Join-Path $dataDir 'launch.json'
   if (Test-Path $launchFile) { Remove-Item -Force $launchFile }
+  Write-Host "`n[3/3] Starting EmailSender..." -ForegroundColor Cyan
   $server = Start-Process -FilePath (Get-Command node).Source -ArgumentList 'server/index.js' -WorkingDirectory $checkout -NoNewWindow -PassThru
   $url = $null
   for ($i = 0; $i -lt 40; $i++) {
     if (Test-Path $launchFile) {
-      try { $url = (Get-Content -Raw $launchFile | ConvertFrom-Json).url; break } catch { }
+      try { $url = (Get-Content -Raw $launchFile | ConvertFrom-Json).url; if ($url) { break } } catch { }
     }
     if ($server.HasExited) { throw 'EmailSender server exited before becoming ready.' }
     Start-Sleep -Milliseconds 250
   }
   if (-not $url) { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue; throw 'The local service did not become ready.' }
-  Start-Process $url
+  if (-not $env:EMAILSENDER_NO_OPEN) {
+    try { Start-Process $url } catch { Write-Warning "Could not open the browser automatically. Open this private link: $url" }
+  } else {
+    Write-Host "Open this private link: $url"
+  }
+  Write-Host 'EmailSender is ready. Keep this terminal open while using it.'
   Wait-Process -Id $server.Id
   if ($server.ExitCode -ne 0) { throw 'EmailSender server exited with an error.' }
 } finally {
+  if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue }
   Pop-Location
 }
