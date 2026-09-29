@@ -234,7 +234,8 @@ async function api(req, res, url) {
       throw new Error('Use an alternate address that is not in the parent directory.');
     }
     const draft = mailFor(state, text(input.registration));
-    const messageId = await sendOne(state, { ...draft, to, subject: `[TEST] ${draft.subject}` });
+    const testId = randomBytes(4).toString('hex').toUpperCase();
+    const messageId = await sendOne(state, { ...draft, to, subject: `[TEST] ${draft.subject} (test ${testId})` });
     state.test = { to, registration: draft.registration, messageId, fingerprint: fingerprint(state), sentAt: new Date().toISOString() };
     await persist();
     return json(res, 200, publicState(state));
