@@ -7,6 +7,9 @@ $dataDir = if ($env:EMAILSENDER_DATA_DIR) { $env:EMAILSENDER_DATA_DIR } else { J
 New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 $env:EMAILSENDER_DATA_DIR = $dataDir
 if (-not (Test-Path (Join-Path $checkout '.git'))) { throw "Managed checkout is missing Git metadata: $checkout" }
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw 'EmailSender needs Node.js 22 or newer. Install Node.js and run emailsender start again.' }
+$nodeMajor = [int](& node -p "process.versions.node.split('.')[0]")
+if ($LASTEXITCODE -ne 0 -or $nodeMajor -lt 22) { throw 'EmailSender needs Node.js 22 or newer. Update Node.js and run emailsender start again.' }
 
 Push-Location $checkout
 $server = $null
@@ -45,17 +48,32 @@ try {
 
   $launchFile = Join-Path $dataDir 'launch.json'
   if (Test-Path $launchFile) { Remove-Item -Force $launchFile }
+  $errorLog = Join-Path $dataDir 'startup-error.log'
+  if (Test-Path $errorLog) { Remove-Item -Force $errorLog }
   Write-Host "`n[3/3] Starting EmailSender..." -ForegroundColor Cyan
-  $server = Start-Process -FilePath (Get-Command node).Source -ArgumentList 'server/index.js' -WorkingDirectory $checkout -NoNewWindow -PassThru
+  $server = Start-Process -FilePath (Get-Command node).Source -ArgumentList 'server/index.js' -WorkingDirectory $checkout -NoNewWindow -PassThru -RedirectStandardError $errorLog
   $url = $null
-  for ($i = 0; $i -lt 40; $i++) {
+  for ($i = 0; $i -lt 240; $i++) {
+    if ($server.HasExited) { break }
     if (Test-Path $launchFile) {
-      try { $url = (Get-Content -Raw $launchFile | ConvertFrom-Json).url; if ($url) { break } } catch { }
+      try {
+        $launch = Get-Content -Raw $launchFile | ConvertFrom-Json
+        if ($launch.pid -eq $server.Id -and $launch.url -match '^http://127\.0\.0\.1:43871/#session=[0-9a-f]{64}$') {
+          $url = $launch.url
+          break
+        }
+      } catch { }
     }
-    if ($server.HasExited) { throw 'EmailSender server exited before becoming ready.' }
     Start-Sleep -Milliseconds 250
   }
-  if (-not $url) { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue; throw 'The local service did not become ready.' }
+  if (-not $url) {
+    if (-not $server.HasExited) { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue }
+    if (Test-Path $errorLog) {
+      $details = (Get-Content -Path $errorLog -Tail 30 -ErrorAction SilentlyContinue) -join "`n"
+      if ($details) { Write-Host $details -ForegroundColor Red }
+    }
+    throw "The local service did not become ready. See $errorLog for startup errors."
+  }
   if (-not $env:EMAILSENDER_NO_OPEN) {
     try { Start-Process $url } catch { Write-Warning "Could not open the browser automatically. Open this private link: $url" }
   } else {

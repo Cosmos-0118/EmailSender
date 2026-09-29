@@ -310,7 +310,7 @@ const state = getState();
 for (const delivery of Object.values(state.deliveries)) if (delivery.status === 'sending') delivery.status = 'uncertain';
 if (state.batch?.status === 'running') state.batch.status = 'paused';
 await persist();
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   try {
     if (req.headers.host !== `${HOST}:${PORT}` && req.headers.host !== `localhost:${PORT}`) return json(res, 403, { error: 'Invalid host.' });
     const url = new URL(req.url, `http://${HOST}:${PORT}`);
@@ -321,8 +321,20 @@ http.createServer(async (req, res) => {
     }
     return await staticFile(res, url.pathname);
   } catch (error) { fail(res, error); }
-}).listen(PORT, HOST, async () => {
+});
+server.on('error', error => {
+  if (error.code === 'EADDRINUSE') console.error(`Port ${PORT} is already in use. Close the other EmailSender instance and try again.`);
+  else console.error('The local service could not start listening:', error);
+  process.exitCode = 1;
+});
+server.listen(PORT, HOST, async () => {
   const url = `http://${HOST}:${PORT}/#session=${token}`;
-  await writeFile(launchFile, JSON.stringify({ url, pid: process.pid }), { mode: 0o600 });
-  console.log(`EmailSender ready. Open this private link: ${url}`);
+  try {
+    await writeFile(launchFile, JSON.stringify({ url, pid: process.pid }), { mode: 0o600 });
+    console.log('EmailSender local service is ready.');
+  } catch (error) {
+    console.error('Could not write the private launch link:', error);
+    process.exitCode = 1;
+    server.close();
+  }
 });

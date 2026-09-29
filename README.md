@@ -6,7 +6,7 @@ EmailSender is a local app for preparing and sending individual attendance notic
 
 ## Requirements
 
-- Git and Node.js LTS for running from a source checkout; the managed installer can install missing tools
+- Git and Node.js 22 or newer for running from a source checkout; the managed installer can install missing tools
 - A Gmail account that can use an app password
 - Attendance and parent directory files in `.xlsx` format; see the [sample layouts](examples/README.md)
 

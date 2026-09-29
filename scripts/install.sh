@@ -24,15 +24,23 @@ trap 'result=$?; if [[ -n "$installer" ]]; then rm -f "$installer"; fi; if [[ -n
 
 printf '\n  E M A I L S E N D E R\n  Local setup for macOS\n'
 
+tool_ready() {
+  local tool="$1"
+  command -v "$tool" >/dev/null 2>&1 && "$tool" --version >/dev/null 2>&1 || return 1
+  if [[ "$tool" == node ]]; then
+    node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' >/dev/null 2>&1
+  fi
+}
+
 bootstrap() {
   local tool="$1"
-  if command -v "$tool" >/dev/null 2>&1 && "$tool" --version >/dev/null 2>&1; then return; fi
+  if tool_ready "$tool"; then return; fi
   if [[ -x /opt/homebrew/bin/brew ]]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
   elif [[ -x /usr/local/bin/brew ]]; then
     eval "$(/usr/local/bin/brew shellenv)"
   fi
-  if command -v "$tool" >/dev/null 2>&1 && "$tool" --version >/dev/null 2>&1; then return; fi
+  if tool_ready "$tool"; then return; fi
   if ! command -v brew >/dev/null 2>&1; then
     if [[ ! -t 0 ]]; then
       echo "Homebrew is missing and needs an interactive terminal to request the macOS administrator password. Run this installer from Terminal." >&2
@@ -55,8 +63,11 @@ bootstrap() {
     fi
   fi
   brew install "$tool"
-  if ! command -v "$tool" >/dev/null 2>&1 || ! "$tool" --version >/dev/null 2>&1; then
-    fail "$tool was installed but is not available yet. Open a new Terminal window and rerun setup."
+  if [[ "$tool" == node ]] && ! tool_ready node; then
+    brew upgrade node
+  fi
+  if ! tool_ready "$tool"; then
+    fail "$tool is unavailable or too old. EmailSender needs Node.js 22 or newer. Open a new Terminal window and rerun setup."
   fi
 }
 

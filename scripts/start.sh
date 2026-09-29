@@ -17,6 +17,10 @@ if [[ ! -d "$CHECKOUT/.git" ]]; then
   echo "Managed checkout is missing Git metadata: $CHECKOUT" >&2
   exit 1
 fi
+if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' >/dev/null 2>&1; then
+  echo 'EmailSender needs Node.js 22 or newer. Update Node.js and run emailsender start again.' >&2
+  exit 1
+fi
 
 cd "$CHECKOUT"
 printf '\n[1/3] Checking for updates...\n'

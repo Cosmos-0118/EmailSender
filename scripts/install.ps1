@@ -18,7 +18,12 @@ function Test-Tool([string]$Name) {
   if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) { return $false }
   try {
     & $Name --version *> $null
-    return ($LASTEXITCODE -eq 0)
+    if ($LASTEXITCODE -ne 0) { return $false }
+    if ($Name -eq 'node') {
+      $major = [int](& node -p "process.versions.node.split('.')[0]")
+      return ($LASTEXITCODE -eq 0 -and $major -ge 22)
+    }
+    return $true
   } catch {
     return $false
   }
@@ -26,18 +31,30 @@ function Test-Tool([string]$Name) {
 
 function Install-Tool([string]$Name, [string]$PackageId) {
   if (Test-Tool $Name) { return }
+  $existing = Get-Command $Name -ErrorAction SilentlyContinue
   if (Get-Command winget -ErrorAction SilentlyContinue) {
-    winget install --id $PackageId --exact --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -ne 0) { throw "Could not install $Name with winget. Fix the error above and rerun setup." }
+    if ($existing -and $Name -eq 'node') {
+      winget upgrade --id $PackageId --exact --accept-package-agreements --accept-source-agreements
+      if ($LASTEXITCODE -ne 0) {
+        winget install --id $PackageId --exact --accept-package-agreements --accept-source-agreements
+      }
+    } else {
+      winget install --id $PackageId --exact --accept-package-agreements --accept-source-agreements
+    }
+    if ($LASTEXITCODE -ne 0) { throw "Could not install or update $Name with winget. Fix the error above and rerun setup." }
   } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-    choco install $Name -y
-    if ($LASTEXITCODE -ne 0) { throw "Could not install $Name with Chocolatey. Fix the error above and rerun setup." }
+    $package = if ($Name -eq 'node') { 'nodejs-lts' } else { $Name }
+    if ($existing -and $Name -eq 'node') {
+      choco upgrade $package -y
+      if ($LASTEXITCODE -ne 0) { choco install $package -y }
+    } else { choco install $package -y }
+    if ($LASTEXITCODE -ne 0) { throw "Could not install or update $Name with Chocolatey. Fix the error above and rerun setup." }
   } else {
-    throw "$Name is required. Install Git and Node.js LTS, then rerun this installer."
+    throw "$Name is missing or too old. Install Git and Node.js 22 or newer, then rerun setup."
   }
   $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
   if (-not (Test-Tool $Name)) {
-    throw "$Name was installed. Open a new PowerShell window and rerun this installer."
+    throw "$Name is still unavailable or too old. EmailSender needs Node.js 22 or newer. Open a new PowerShell window and rerun setup."
   }
 }
 

@@ -66,6 +66,17 @@ test('rejects duplicate student-subject rows rather than silently sending confli
   await assert.rejects(parseAttendance(file), /Duplicate registration and subject code/);
 });
 
+test('imports formatted percentages and cached formula results', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Attendance');
+  sheet.addRow(['Register Number', 'Student Name', 'Subject Code', 'Subject Name', 'Attendance Percentage']);
+  sheet.addRow(['RA001', 'Student One', 'CODE1', 'Networks']);
+  sheet.getCell('E2').value = { formula: '70/100', result: 0.7 };
+  sheet.getCell('E2').numFmt = '0%';
+  const rows = await parseAttendance(Buffer.from(await book.xlsx.writeBuffer()));
+  assert.equal(rows[0].percentage, 70);
+});
+
 test('contact review reports the fields that actually changed', () => {
   const current = [{ registration: 'RA001', studentName: 'R M SUBASH', email: 'parent@example.com' }];
   const nameOnly = [{ registration: 'RA001', studentName: 'R. M. SUBASH', email: 'parent@example.com' }];
