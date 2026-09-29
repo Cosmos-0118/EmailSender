@@ -1,54 +1,87 @@
 # EmailSender
 
-EmailSender is a local website for preparing and sending attendance notices. The web app and its sending service run on your computer; the app data directory is separate from the managed code checkout.
+EmailSender is a local app for preparing and sending individual attendance notices to parents. It imports Excel workbooks, matches students to parent email addresses by registration number, lets you review the message, and sends through your Gmail account. The website and sending service run on your computer.
 
-Prepare `.xlsx` files using the [sanitized layout examples](examples/README.md). Your real attendance and parent workbooks are ignored by Git under `Input/`.
+**Repository:** [Cosmos-0118/EmailSender](https://github.com/Cosmos-0118/EmailSender) (`main`). The repository is currently private. You need access to it and working GitHub authentication before cloning or using the managed installer. Public `raw.githubusercontent.com` install commands will not work while it is private.
 
-## Install
+## Requirements
 
-The public repository URL is not configured yet. Once the repository owner and name are known, replace `OWNER/REPOSITORY` in the installer command below, or provide the repository URL with `EMAILSENDER_REPO_URL`.
+- Git and Node.js LTS
+- A Gmail account that can use an app password
+- Attendance and parent directory files in `.xlsx` format; see the [sample layouts](examples/README.md)
 
-### macOS
+## Run from a source checkout
+
+These commands use the repository directly and keep your app data outside it. On macOS, use Terminal; on Windows, use PowerShell. Authenticate Git with an account that has access to the private repository before cloning.
 
 ```sh
-EMAILSENDER_REPO_URL=https://github.com/OWNER/REPOSITORY.git bash -c "$(curl -fsSL https://raw.githubusercontent.com/OWNER/REPOSITORY/main/scripts/install.sh)"
+git clone https://github.com/Cosmos-0118/EmailSender.git
+cd EmailSender
+npm ci
+npm run dev
 ```
 
-The installer bootstraps Homebrew with its official installer if missing, then uses it to install Git and Node.js when needed. Homebrew may request your macOS administrator password and command line tools. The installer adds `~/.local/bin` to the detected shell profile (`.zprofile`, `.bash_profile`, `config.fish`, or `.profile`) and updates the current session's `PATH`.
+`npm run dev` builds the website, starts the local service, and opens its private launch link in your browser. Leave the terminal running while using EmailSender. To start it again later, run `npm run dev` from the checkout. To update, stop the app and run `git pull --ff-only`, `npm ci`, then `npm run dev`.
 
-### Windows PowerShell
+The app listens on `127.0.0.1:43871`, but the bare address and an old Vite tab on port `5173` will not unlock it. Use the browser tab opened by the launcher. If you run `npm run start` directly, open the private link printed in the terminal.
+
+## Optional managed launcher
+
+The installer creates a separate managed checkout, adds an `emailsender` command, and starts the app. First clone the private repository as above so you can run its installer script.
+
+On macOS, from that checkout:
+
+```sh
+EMAILSENDER_REPO_URL=https://github.com/Cosmos-0118/EmailSender.git bash scripts/install.sh
+```
+
+The macOS installer uses Homebrew to install missing Git or Node.js dependencies and may request administrator access. It adds `~/.local/bin` to your shell profile; open a new terminal if `emailsender` is not yet on your `PATH`.
+
+On Windows PowerShell, from that checkout:
 
 ```powershell
-& { $env:EMAILSENDER_REPO_URL = 'https://github.com/OWNER/REPOSITORY.git'; irm 'https://raw.githubusercontent.com/OWNER/REPOSITORY/main/scripts/install.ps1' | iex }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -RepositoryUrl https://github.com/Cosmos-0118/EmailSender.git
 ```
 
-The installer uses `winget` (or Chocolatey) to install Git and Node.js LTS when needed. It adds `%LOCALAPPDATA%\EmailSender\bin` to the user `PATH`; open a new terminal if Windows has not refreshed `PATH`. If neither package manager is installed, install Git and Node.js LTS first.
+The Windows installer uses `winget` or Chocolatey for missing dependencies and adds `%LOCALAPPDATA%\EmailSender\bin` to your user `PATH`. Open a new PowerShell window if the command is not yet available.
 
-## Start and update
-
-After installation, run:
+After installation, start or update the managed app with:
 
 ```text
 emailsender start
 ```
 
-Each start fetches the repository's default branch, resets local changes inside the managed checkout, installs dependencies, builds the app, and starts the local website at `http://127.0.0.1:43871`. The command opens that address in your browser. The managed checkout is application code; do not put personal files there.
+Each managed start fetches the default branch, resets local changes **inside the managed app checkout**, installs dependencies, builds, and opens the private local link. Do not store personal files or edits in that managed checkout. Attendance files and saved app data live separately.
 
-Open the site through `emailsender start`. For a local source checkout, run `npm install` once and then `npm run dev`; this builds and opens the same private local website. An old development tab on port `5173` or the bare service address will not unlock your data. When running `npm run start` directly, use the private link printed in the terminal.
+## Send a mailing
 
-## Local data and privacy
+1. Save your Gmail sender address and app password.
+2. Import the attendance workbook. The app imports rows below 75%. Community Connect (`21GNP301L`) rows with 0% are excluded from messages by default, but can be included during review.
+3. Import the parent directory. Records are matched by registration number. Review real name or email changes before accepting a replacement sheet; contacts absent from the new sheet remain saved.
+4. Resolve data warnings and review the personalized draft and recipient list.
+5. Send a test to an alternate email address. Check that it arrived and that its content is correct, then press **Verify test email**. Each test gets a unique subject so repeated tests appear separately in Gmail.
+6. Open parent delivery and send. Each eligible student gets one separate email containing all included shortage subjects. Monitor delivery progress and resolve any uncertain outcome before resuming.
 
-The local service binds to `127.0.0.1:43871` and sends through Gmail SMTP over TLS. It stores credentials, parent records, attendance, drafts, and delivery history in `EMAILSENDER_DATA_DIR`, outside the managed Git checkout:
+Gmail accepting a test means it accepted the message for delivery; it does not prove it arrived in the inbox. The verification button records your check of the received message.
+
+## Local data and recovery
+
+EmailSender stores sender credentials, parent records, attendance, drafts, and delivery history outside the Git checkout. Set `EMAILSENDER_DATA_DIR` to choose a different data directory. Defaults are:
 
 - macOS: `~/Library/Application Support/EmailSender/data`
 - Windows: `%LOCALAPPDATA%\EmailSender\data`
 
-The service encrypts its data file with AES-256-GCM and stores the encryption key in the operating system credential store. It also keeps an encrypted recovery snapshot in browser IndexedDB. Gmail receives the message content and recipient addresses when email is sent.
+The local data file is encrypted with AES-256-GCM, and its key is stored in the operating system credential store. The browser also keeps an encrypted recovery snapshot in IndexedDB. Gmail receives email content and recipient addresses when messages are sent. Real workbooks under `Input/` are ignored by Git.
 
-If the local data file is lost and you restore the browser snapshot, every recipient is marked as having an uncertain delivery outcome. Check the sender's Gmail Sent folder and resolve each recipient before sending a fresh test and resuming. This prevents a stale browser copy from silently resending notices.
+If you restore a browser snapshot after losing the local data file, previous delivery outcomes are marked uncertain. Check the sender's Gmail Sent folder, resolve each outcome in the app, and send and verify a fresh test before resuming. This prevents a restored snapshot from silently resending notices.
 
-The sender account needs a Gmail app password. Google explains how to create and use one in [Google Account Help](https://support.google.com/accounts/answer/2461835). A successful test means Gmail accepted the message; check the alternate inbox before sending to parents.
+For app password setup, see [Google Account Help](https://support.google.com/accounts/answer/2461835).
 
-## Repository maintainers
+## Development
 
-Configure the public Git URL as `EMAILSENDER_REPO_URL` at install time. The launchers run `npm run build` and `npm run start`; the local web server binds to `127.0.0.1:43871` and reads `EMAILSENDER_DATA_DIR`.
+```sh
+npm test
+npm run build
+```
+
+`npm test` runs the model checks. `npm run build` creates the production website in `dist/`.
